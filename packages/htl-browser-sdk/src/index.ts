@@ -5,6 +5,7 @@ export interface HTLEntropyReport {
   shannonEntropy: number;
   meanDwell: number;
   dwellSampleCount: number;
+  captureMode: 'tap' | 'input';
   isHumanLikely: boolean;
   capturedAt: number;
 }
@@ -19,6 +20,8 @@ export class HTLKeystrokeTracker {
   private flightTimes: number[] = [];
   private dwellTimes: number[] = [];
   private lastInputAt = 0;
+  private lastTapAt = 0;
+  private tapMode = false;
   private readonly downAt = new Map<string, number>();
   private active = true;
 
@@ -35,20 +38,20 @@ export class HTLKeystrokeTracker {
     return this.flightTimes.length;
   }
 
-  private readonly handleInput = (): void => {
-    if (!this.active) return;
-    const now = performance.now();
-    if (this.lastInputAt > 0) {
-      this.flightTimes.push(now - this.lastInputAt);
-    }
-    this.lastInputAt = now;
-    this.maybeFinalize();
-  };
-
   private readonly handleKeyDown = (e: Event): void => {
     if (!this.active) return;
     const ke = e as KeyboardEvent;
-    if (ke.repeat || ke.key === 'Unidentified') return;
+    if (ke.repeat) return;
+    if (ke.key === 'Unidentified') {
+      this.tapMode = true;
+      const now = performance.now();
+      if (this.lastTapAt > 0) {
+        this.flightTimes.push(now - this.lastTapAt);
+      }
+      this.lastTapAt = now;
+      this.maybeFinalize();
+      return;
+    }
     this.downAt.set(ke.code, performance.now());
   };
 
@@ -61,6 +64,16 @@ export class HTLKeystrokeTracker {
       this.dwellTimes.push(performance.now() - down);
       this.downAt.delete(ke.code);
     }
+  };
+
+  private readonly handleInput = (): void => {
+    if (!this.active || this.tapMode) return;
+    const now = performance.now();
+    if (this.lastInputAt > 0) {
+      this.flightTimes.push(now - this.lastInputAt);
+    }
+    this.lastInputAt = now;
+    this.maybeFinalize();
   };
 
   private maybeFinalize(): void {
@@ -82,6 +95,7 @@ export class HTLKeystrokeTracker {
       shannonEntropy,
       meanDwell,
       dwellSampleCount: this.dwellTimes.length,
+      captureMode: this.tapMode ? 'tap' : 'input',
       isHumanLikely: stdDevFlight > 18 && shannonEntropy > 2.5,
       capturedAt: Date.now(),
     };

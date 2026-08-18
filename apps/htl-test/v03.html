@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTL v0.3 - Boucle Souveraine</title>
+<style>
+  body{font-family:monospace;background:#0d1117;color:#c9d1d9;padding:16px}
+  h1{font-size:18px}
+  textarea{width:100%;height:140px;background:#161b22;border:1px solid #30363d;color:#fff;padding:10px;font-size:16px}
+  .did{color:#58a6ff;white-space:pre-wrap;word-break:break-all;border:1px solid #30363d;padding:10px;background:#161b22}
+  pre{background:#161b22;padding:10px;border:1px solid #30363d;white-space:pre-wrap}
+</style>
+<script src="lib/supabase.min.js"></script>
+</head>
+<body>
+<h1>HumanTrust Layer - Boucle Souveraine v0.3</h1>
+<p>Tape 40 caracteres. Verdict humain = DID forge + score HTIP grave dans la chambre forte. Texte detruit en local, jamais envoye.</p>
+<textarea id="zone" placeholder="Tape ici..."></textarea>
+<p id="count">Echantillons : 0 / 40</p>
+<pre id="out">En attente de donnees biometriques...</pre>
+<pre id="did" class="did"></pre>
+<script type="module">
+import { HTLKeystrokeTracker } from '/packages/htl-browser-sdk/dist/index.js';
+
+const SB_URL = 'https://wrilwtbjuzbmjncqlvgu.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWx3dGJqdXpibWpuY3Fsdmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzA0NzUsImV4cCI6MjEwMjY0NjQ3NX0.kXhA4gKddA9UAJR_Pa-86n4Okr58JMtt98HsktQtN08';
+const sb = supabase.createClient(SB_URL, SB_ANON);
+
+const zone = document.getElementById('zone');
+const out = document.getElementById('out');
+const didBox = document.getElementById('did');
+const count = document.getElementById('count');
+
+function b64url(bytes) {
+  let bin = '';
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+async function forgeDID() {
+  let algoName = 'Ed25519';
+  let kp;
+  try {
+    kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
+  } catch (err) {
+    algoName = 'ECDSA-P256';
+    kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']);
+  }
+  const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(jwk)));
+  const fp = b64url(new Uint8Array(digest).slice(0, 16));
+  return { did: 'did:htl:' + fp, pub: JSON.stringify(jwk), algo: algoName };
+}
+
+function htipScore(r) {
+  return Math.min(1000, Math.round(r.shannonEntropy * 150 + Math.min(r.stdDevFlight, 300) * 0.5 + 100));
+}
+
+const tracker = new HTLKeystrokeTracker(zone, 40, async (r) => {
+  let txt = '=== RAPPORT D ENTROPIE HTL v0.3 ===\n' +
+    'Mode de capture         : ' + r.captureMode + '\n' +
+    'Echantillons analyses   : ' + r.sampleCount + '\n' +
+    'Temps de vol moyen      : ' + r.meanFlight.toFixed(2) + ' ms\n' +
+    'Deviation std (vol)     : ' + r.stdDevFlight.toFixed(2) + ' ms\n' +
+    'Entropie de Shannon     : ' + r.shannonEntropy.toFixed(4) + ' bits\n' +
+    'Maintien moyen (dwell)  : ' + r.meanDwell.toFixed(2) + ' ms\n';
+  if (!r.isHumanLikely) {
+    out.textContent = txt + '[PATTERN SYNTHETIQUE] Recharge et retape plus humainement.';
+    return;
+  }
+  txt += '[HUMAIN CONFIRME] Forgeage du DID en cours...\n';
+  out.textContent = txt;
+  try {
+    const id = await forgeDID();
+    const insId = await sb.from('identities').insert({ did: id.did, public_key: id.pub }).select().single();
+    if (insId.error) throw new Error(insId.error.message);
+    const score = htipScore(r);
+    const insScore = await sb.from('trust_scores').insert({
+      identity_id: insId.data.id,
+      score: score,
+      entropy_bits: Math.round(r.shannonEntropy * 10000) / 10000,
+      proof_hash: 'htip-v1:' + r.capturedAt.toString(36),
+      device_class: 'tablet-android'
+    }).select().single();
+    if (insScore.error) throw new Error(insScore.error.message);
+    out.textContent = txt + '[DID FORGE] ' + id.did + '\nAlgo cle                : ' + id.algo + '\n[SCORE HTIP GRAVE] ' + score + ' / 1000\n';
+    didBox.textContent = 'TON IDENTITE SOUVERAINE :\n' + id.did + '\n\nScore HTIP : ' + score + '/1000\nEntropie : ' + r.shannonEntropy.toFixed(4) + ' bits\n\nCette identite vit dans la chambre forte HTL.\nPersonne ne peut te la prendre.';
+  } catch (err) {
+    out.textContent = txt + '[ECHEC CHAMBRE FORTE] ' + err.message;
+  }
+});
+setInterval(() => { count.textContent = 'Echantillons : ' + tracker.capturedCount + ' / 40'; }, 250);
+</script>
+</body>
+</html>
