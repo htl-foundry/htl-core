@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTL - Zone de Verification Biometrique</title>
+<style>
+  body{font-family:monospace;background:#0d1117;color:#c9d1d9;padding:16px}
+  h1{font-size:18px}
+  textarea{width:100%;height:160px;background:#161b22;border:1px solid #30363d;color:#fff;padding:10px;font-size:16px}
+  .human{color:#3fb950;font-weight:bold}
+  .bot{color:#f85149;font-weight:bold}
+  pre{background:#161b22;padding:10px;border:1px solid #30363d;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>HumanTrust Layer - Moteur Biometrique v0.2</h1>
+<p>Tape au moins 40 caracteres. Analyse 100% locale. Aucune frappe ne quitte cet ecran.</p>
+<textarea id="zone" placeholder="Tape ici..."></textarea>
+<p id="count">Echantillons : 0 / 40</p>
+<pre id="out">En attente de donnees biometriques...</pre>
+<script type="module">
+import { HTLKeystrokeTracker } from '/packages/htl-browser-sdk/dist/index.js';
+const zone = document.getElementById('zone');
+const out = document.getElementById('out');
+const count = document.getElementById('count');
+const tracker = new HTLKeystrokeTracker(zone, 40, (r) => {
+  const verdict = r.isHumanLikely
+    ? '<span class="human">[HUMAIN CONFIRME] Entropie biologique detectee.</span>'
+    : '<span class="bot">[PATTERN SYNTHETIQUE] Regularite anormale.</span>';
+  out.innerHTML =
+    '=== RAPPORT D ENTROPIE HTL ===\n' +
+    'Echantillons analyses   : ' + r.sampleCount + '\n' +
+    'Temps de vol moyen      : ' + r.meanFlight.toFixed(2) + ' ms\n' +
+    'Deviation std (vol)     : ' + r.stdDevFlight.toFixed(2) + ' ms\n' +
+    'Entropie de Shannon     : ' + r.shannonEntropy.toFixed(4) + ' bits\n' +
+    'Maintien moyen (dwell)  : ' + r.meanDwell.toFixed(2) + ' ms\n' +
+    verdict;
+});
+setInterval(() => { count.textContent = 'Echantillons : ' + tracker.capturedCount + ' / 40'; }, 250);
+</script>
+</body>
+</html>
