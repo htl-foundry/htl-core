@@ -20,5 +20,8 @@
   "homepage": "https://github.com/htl-foundry/htl-core-#readme",
   "devDependencies": {
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3"
   }
 }
