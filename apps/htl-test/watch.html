@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTL - Tour de Controle</title>
+<style>
+body{font-family:monospace;background:#0d1117;color:#c9d1d9;padding:16px}
+.big{font-size:42px;color:#3fb950}
+.did{color:#58a6ff;word-break:break-all;border:1px solid #30363d;padding:8px;background:#161b22;margin-top:8px}
+</style>
+<script src="lib/supabase.min.js"></script>
+</head>
+<body>
+<h1>HTL - Tour de Controle</h1>
+<p class="big" id="count">0</p>
+<p id="status">Connexion a la chambre forte...</p>
+<div id="last"></div>
+<script>
+const sb=supabase.createClient('https://wrilwtbjuzbmjncqlvgu.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWx3dGJqdXpibWpuY3Fsdmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzA0NzUsImV4cCI6MjEwMjY0NjQ3NX0.kXhA4gKddA9UAJR_Pa-86n4Okr58JMtt98HsktQtN08');
+let known=0;
+async function refresh(first){
+const r=await sb.from('identities').select('did',{count:'exact'}).order('created_at',{ascending:false}).limit(5);
+if(r.error){document.getElementById('status').textContent='ERREUR: '+r.error.message;return;}
+if(!first&&r.count>known){if(navigator.vibrate)navigator.vibrate([400,200,400]);document.getElementById('status').textContent='ALERTE: '+(r.count-known)+' nouvelle(s) identite(s) !';}
+known=r.count;
+document.getElementById('count').textContent=r.count;
+document.getElementById('status').textContent='Surveillance active. '+known+' identites en chambre forte.';
+const box=document.getElementById('last');box.innerHTML='';
+r.data.forEach(x=>{const d=document.createElement('div');d.className='did';d.textContent=x.did;box.appendChild(d);});
+}
+refresh(true);
+setInterval(()=>refresh(false),5000);
+</script>
+</body>
+</html>
