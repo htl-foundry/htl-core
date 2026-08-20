@@ -59,7 +59,7 @@ const did='did:htl:'+b64url(new Uint8Array(d).slice(0,16));
 const score=htip(r);
 const i1=await sb.from('identities').insert({did,public_key:JSON.stringify(j)}).select().single();
 if(i1.error){$('status').textContent='Erreur chambre forte.';return;}
-await sb.from('trust_scores').insert({identity_id:i1.data.id,score,entropy_bits:Math.round(r.shannonEntropy*10000)/10000,proof_hash:'htip-v3:'+r.capturedAt.toString(36),device_class:'tablet-android'});
+await fetch('https://wrilwtbjuzbmjncqlvgu.supabase.co/functions/v1/smart-api',{method:'POST',headers:{'Content-Type':'application/json',apikey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWx3dGJqdXpibWpuY3Fsdmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzA0NzUsImV4cCI6MjEwMjY0NjQ3NX0.kXhA4gKddA9UAJR_Pa-86n4Okr58JMtt98HsktQtN08',Authorization:'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWx3dGJqdXpibWpuY3Fsdmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzA0NzUsImV4cCI6MjEwMjY0NjQ3NX0.kXhA4gKddA9UAJR_Pa-86n4Okr58JMtt98HsktQtN08'},body:JSON.stringify({identity_id:i1.data.id,entropy:r.shannonEntropy,std:r.stdDevFlight})});
 if(!('ontouchstart' in window))setTimeout(function(){if(window.HTLFallback)HTLFallback.run(function(){});},2000);
 const dev=crypto.getRandomValues(new Uint8Array(32));
 const priv=await enc(await aesKey(dev),await crypto.subtle.exportKey('jwk',kp.privateKey));
