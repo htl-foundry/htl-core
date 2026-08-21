@@ -1,5 +1,5 @@
 {
-  "name": "@htl-protocol/browser-sdk",
+  "name": "@htl-foundry/browser-sdk",
   "version": "1.0.0",
   "description": "HumanTrust Layer behavioral entropy SDK - prove humanity locally",
   "license": "MIT",
