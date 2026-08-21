@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HumanTrust - v0.9 Reseau</title>
+<style>
+:root{--bg:#fbfbfd;--ink:#1d1d1f;--mut:#86868b;--acc:#0071e3;--line:#d2d2d7}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:0 20px}
+.wrap{max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+h1{font-size:34px;font-weight:600;letter-spacing:-.02em;text-align:center}
+.sub{color:var(--mut);font-size:15px;text-align:center;margin:10px 0 30px}
+textarea{width:100%;height:150px;border:1px solid var(--line);border-radius:18px;background:#fff;padding:18px;font-size:17px;resize:none;outline:none}
+textarea:focus{border-color:var(--acc)}
+.ring{width:42px;height:42px;margin:24px auto 10px;border-radius:50%;border:3px solid #e8e8ed;border-top-color:var(--acc);animation:spin 1s linear infinite;display:none}
+@keyframes spin{to{transform:rotate(1turn)}}
+.status{text-align:center;color:var(--mut);font-size:14px;min-height:20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px;margin-top:24px;display:none;text-align:center}
+.score{font-size:40px;font-weight:600}
+.did{color:var(--acc);word-break:break-all;font-family:ui-monospace,monospace;font-size:13px;margin-top:6px}
+details{margin-top:24px;color:var(--mut);font-size:13px;text-align:center}
+pre{background:#f5f5f7;border-radius:12px;padding:12px;margin-top:10px;white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:11px;text-align:left}
+footer{color:var(--mut);font-size:12px;text-align:center;padding:28px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Vous etes humain.</h1>
+<p class="sub">Prouvez-le en ecrivant. Rien d autre a faire. Rien d autre stocke.</p>
+<textarea id="zone" placeholder="Ecrivez naturellement..."></textarea>
+<div class="ring" id="ring"></div>
+<p class="status" id="status">Analyse locale en cours...</p>
+<div class="card" id="card"><div class="score" id="score"></div><p class="did" id="did"></p></div>
+<details><summary>Details techniques</summary><pre id="out"></pre></details>
+<footer>ZERO GAFAM - ZERO KYC - ZERO DONNEE STOCKEE</footer>
+</div>
+<script src="lib/supabase.min.js"></script>
+<script src="lib/motion.js"></script>
+<script src="lib/phantom.js"></script>
+<script src="lib/fallback.js"></script>
+<script type="module">
+import { HTLKeystrokeTracker } from '../../packages/htl-browser-sdk/dist/index.js';
+const sb=supabase.createClient('https://wrilwtbjuzbmjncqlvgu.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWx3dGJqdXpibWpuY3Fsdmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzA0NzUsImV4cCI6MjEwMjY0NjQ3NX0.kXhA4gKddA9UAJR_Pa-86n4Okr58JMtt98HsktQtN08');
+const $=id=>document.getElementById(id);
+const te=new TextEncoder();
+const b64url=b=>btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+function idb(){return new Promise((res,rej)=>{const q=indexedDB.open('htl-wallet',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>res(q.result.transaction('kv','readwrite').objectStore('kv'));q.onerror=()=>rej(q.error);});}
+async function aesKey(raw){return crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['encrypt','decrypt']);}
+async function enc(key,obj){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,te.encode(JSON.stringify(obj)));return{iv:[...iv],ct:[...new Uint8Array(ct)]};}
+async function forge(){try{const kp=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);return{kp,algo:'Ed25519'};}catch(e){const kp=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);return{kp,algo:'ECDSA-P256'};}}
+const htip=r=>Math.min(1000,Math.round(r.shannonEntropy*150+Math.min(r.stdDevFlight,300)*.5+100+(window.HTLMotion?HTLMotion.bits():0)*60));
+const tracker=new HTLKeystrokeTracker($('zone'),40,async r=>{
+$('ring').style.display='block';$('status').textContent='Verification...';
+if(!r.isHumanLikely){$('ring').style.display='none';$('status').textContent='Pattern synthetique. Ecrivez naturellement, puis rechargez.';return;}
+const {kp,algo}=await forge();
+const j=await crypto.subtle.exportKey('jwk',kp.publicKey);
+const d=await crypto.subtle.digest('SHA-256',te.encode(JSON.stringify(j)));
+const did='did:htl:'+b64url(new Uint8Array(d).slice(0,16));
+const score=htip(r);
+const i1=await sb.from('identities').insert({did,public_key:JSON.stringify(j)}).select().single();
+if(i1.error){$('status').textContent='Erreur chambre forte.';return;}
+const g=await fetch('https://wrilwtbjuzbmjncqlvgu.supabase.co/functions/v1/smart-api',{method:'POST',headers:{'Content-Type':'application/json',apikey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWx3dGJqdXpibWpuY3Fsdmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzA0NzUsImV4cCI6MjEwMjY0NjQ3NX0.kXhA4gKddA9UAJR_Pa-86n4Okr58JMtt98HsktQtN08',Authorization:'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWx3dGJqdXpibWpuY3Fsdmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzA0NzUsImV4cCI6MjEwMjY0NjQ3NX0.kXhA4gKddA9UAJR_Pa-86n4Okr58JMtt98HsktQtN08'},body:JSON.stringify({did,identity_id:i1.data.id,entropy:r.shannonEntropy,std:r.stdDevFlight,motion:window.HTLMotion?HTLMotion.bits():0,client_id:'vitrine'})});
+const gd=await g.json().catch(function(){return null;});
+if(!('ontouchstart' in window))setTimeout(function(){if(window.HTLFallback)HTLFallback.run(function(){});},2000);
+const dev=crypto.getRandomValues(new Uint8Array(32));
+const priv=await enc(await aesKey(dev),await crypto.subtle.exportKey('jwk',kp.privateKey));
+await (await idb()).put({did,algo,score,dev:[...dev],priv},'wallet');
+$('ring').style.display='none';$('status').textContent='Humanite confirmee.'+((gd&&gd.level)?' Confiance niveau '+gd.level+'.':'');
+$('card').style.display='block';$('score').textContent=((gd&&gd.ok)?gd.score:score)+' / 1000';
+$('did').textContent=did;
+$('out').textContent='Entropie '+r.shannonEntropy.toFixed(4)+' bits\nStd vol '+r.stdDevFlight.toFixed(2)+' ms\nMode '+r.captureMode+'\nAlgo '+algo;
+});
+setInterval(()=>{const n=tracker.capturedCount;if(n>0&&n<40)$('status').textContent='Analyse locale... '+n+'/40';},500);
+setInterval(()=>{if(window.HTLPhantom&&$('card').style.display==='block')$('status').textContent='Humanite confirmee. Confiance niveau '+HTLPhantom.level()+'.';},5000);
+</script>
+</body>
+</html>
